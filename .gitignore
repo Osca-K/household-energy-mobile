@@ -41,3 +41,15 @@ example
 # generated native folders
 /ios
 /android
+
+# Temporary local/tunnel preview QR codes (keep the hosted demo QR)
+/expo-go-qr.png
+/expo-go-tunnel-qr.png
+/development-client-qr.png
+
+# Native Firebase configuration and emulator logs
+/firebase-config/*
+!/firebase-config/README.md
+/firebase-debug.log
+/firestore-debug.log
+/ui-debug.log

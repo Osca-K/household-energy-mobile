@@ -1,0 +1,6 @@
+import type { Settings } from './settings';
+export const invitationPrefix = 'householdenergymobile://join?token=';
+export function invitationLink(token: string) { return `${invitationPrefix}${encodeURIComponent(token)}`; }
+export function parseInvitation(value: string) { const text = value.trim(); if (/^[a-f0-9]{48}$/i.test(text)) return text.toLowerCase(); try { const url = new URL(text); if (url.protocol !== 'householdenergymobile:' || url.hostname !== 'join') return ''; const token = url.searchParams.get('token') || ''; return /^[a-f0-9]{48}$/i.test(token) ? token.toLowerCase() : ''; } catch { return ''; } }
+export function invitationStatus(settings: Settings, value: string, now = new Date()) { const token = parseInvitation(value); if (!token || token !== settings.household.invitation?.token || settings.household.invitation.revoked || !Number.isFinite(Date.parse(settings.household.invitation.expiresAt))) return 'invalid'; if (new Date(settings.household.invitation.expiresAt).getTime() <= now.getTime()) return 'expired'; if (settings.household.members.some(member => member.id === 'self')) return 'already-joined'; return 'valid'; }
+export function invitationExpiry(now = new Date()) { return new Date(now.getTime() + 7 * 86400000).toISOString(); }

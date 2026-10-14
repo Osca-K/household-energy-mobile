@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function homePath(hid) { return /databases/$(database)/documents/households/$(hid); }
+    function memberPath(hid, uid) { return /databases/$(database)/documents/households/$(hid)/members/$(uid); }
+    function member(hid) { return verified() && exists(memberPath(hid, request.auth.uid)); }
+    function creator(hid) { return member(hid) && get(homePath(hid)).data.creatorUid == request.auth.uid; }
+    function bounded(value, length) { return value is string && value.size() <= length; }
+    function profile(data, uid) {
+      return signedIn() && request.auth.uid == uid
+        && data.keys().hasAll(['displayName','email','activeHouseholdId','createdAt','updatedAt'])
+        && data.keys().hasOnly(['displayName','email','activeHouseholdId','createdAt','updatedAt'])
+        && bounded(data.displayName,80) && data.displayName.size() > 0
+        && data.email == request.auth.token.email && bounded(data.email,254)
+        && bounded(data.activeHouseholdId,128)
+        && (data.activeHouseholdId == '' || existsAfter(memberPath(data.activeHouseholdId,uid)))
+        && data.createdAt is timestamp && data.updatedAt == request.time;
+    }
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if profile(request.resource.data,uid) && request.resource.data.createdAt == request.time;
+      allow update: if profile(request.resource.data,uid) && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+    function household(data) {
+      return data.keys().hasAll(['name','creatorUid','createdAt','updatedAt'])
+        && data.keys().hasOnly(['name','creatorUid','createdAt','updatedAt'])
+        && bounded(data.name,80) && data.name.size() > 0 && bounded(data.creatorUid,128)
+        && data.createdAt is timestamp && data.updatedAt == request.time;
+    }
+    match /households/{hid} {
+      allow read: if member(hid);
+      allow create: if verified() && household(request.resource.data)
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && !exists(memberPath(hid,request.auth.uid))
+        && getAfter(memberPath(hid,request.auth.uid)).data.uid == request.auth.uid;
+      allow update: if creator(hid) && household(request.resource.data)
+        && request.resource.data.creatorUid == resource.data.creatorUid
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+      match /members/{uid} {
+        allow read: if member(hid);
+        // Only the first creator, in the same atomic write as the NEW household.
+        // Existing households cannot be joined by writing a membership document.
+        allow create: if verified() && uid == request.auth.uid && !exists(homePath(hid))
+          && getAfter(homePath(hid)).data.creatorUid == request.auth.uid
+          && request.resource.data.keys().hasAll(['uid','displayName','joinedAt'])
+          && request.resource.data.keys().hasOnly(['uid','displayName','joinedAt'])
+          && request.resource.data.uid == request.auth.uid
+          && bounded(request.resource.data.displayName,80) && request.resource.data.displayName.size() > 0
+          && request.resource.data.joinedAt == request.time;
+        allow update, delete: if false;
+      }
+      function schedule(slot) {
+        return slot is map && slot.keys().hasAll(['id','days','start','end','enabled'])
+          && slot.keys().hasOnly(['id','days','start','end','enabled'])
+          && bounded(slot.id,128) && slot.days is list && slot.days.size() > 0 && slot.days.size() <= 7
+          && slot.days.hasOnly([0,1,2,3,4,5,6]) && slot.enabled is bool
+          && slot.start is string && slot.end is string
+          && slot.start.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+          && slot.end.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') && slot.start != slot.end;
+      }
+      function slotAt(slots, index) { return slots.size() <= index || schedule(slots[index]); }
+      function schedules(slots) {
+        return slots is list && slots.size() <= 10
+          && slotAt(slots,0) && slotAt(slots,1) && slotAt(slots,2) && slotAt(slots,3) && slotAt(slots,4)
+          && slotAt(slots,5) && slotAt(slots,6) && slotAt(slots,7) && slotAt(slots,8) && slotAt(slots,9);
+      }
+      function reading(value) { return bounded(value,32) && (value == '' || value.matches('^[0-9]+([.,][0-9]+)?([ /–-]+[0-9]+([.,][0-9]+)?)?$')); }
+      function device(data) {
+        return data.keys().hasAll(['name','icon','category','location','brand','model','power','powerUnit','voltage','voltageUnit','frequency','frequencyUnit','mode','enabled','powerOn','offline','schedules','createdBy','updatedBy','createdAt','updatedAt'])
+          && data.keys().hasOnly(['name','icon','category','location','brand','model','power','powerUnit','voltage','voltageUnit','frequency','frequencyUnit','mode','enabled','powerOn','offline','schedules','createdBy','updatedBy','createdAt','updatedAt'])
+          && bounded(data.name,40) && data.name.size() > 0 && data.icon in ['smart-meter','air-conditioner','fridge','washing-machine','water-heater','blender','kettle','mixer','juicer','toaster','rice-cooker','fan','microwave','vacuum','heater','iron','air-fryer','dishwasher','oven','television','computer','lights','other']
+          && bounded(data.category,80) && bounded(data.location,120) && bounded(data.brand,80) && bounded(data.model,80)
+          && reading(data.power) && reading(data.voltage) && reading(data.frequency)
+          && data.powerUnit in ['W','kW','A','VA'] && data.voltageUnit in ['V','kV'] && data.frequencyUnit in ['Hz','kHz']
+          && data.mode in ['manual','alwaysOn','scheduled'] && data.enabled is bool && data.powerOn is bool && data.offline is bool
+          && schedules(data.schedules) && (data.mode != 'scheduled' || data.schedules.size() > 0)
+          && bounded(data.createdBy,128) && data.updatedBy == request.auth.uid
+          && data.createdAt is timestamp && data.updatedAt == request.time;
+      }
+      match /devices/{did} {
+        allow read: if member(hid);
+        allow create: if verified() && device(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdAt == request.time
+          && ((creator(hid)) || (!exists(homePath(hid)) && getAfter(homePath(hid)).data.creatorUid == request.auth.uid && existsAfter(memberPath(hid,request.auth.uid))));
+        allow update: if creator(hid) && device(request.resource.data)
+          && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if creator(hid);
+      }
+      // Sessions, estimates, invitations, meter photos and notifications are not
+      // implemented in stage one. No permissive recursive household rule.
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

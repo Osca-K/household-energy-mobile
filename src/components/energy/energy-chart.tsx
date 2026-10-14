@@ -1,6 +1,6 @@
 import { useId } from 'react';
-import { View, Text } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Path } from 'react-native-svg';
+import { View, Text } from '@/design/themed-native';
+import Svg, { Defs, LinearGradient, Stop, Path } from '@/design/themed-svg';
 import { palette } from '@/design/energy-theme';
 import { costSeries, energySeries } from '@/data/home';
 

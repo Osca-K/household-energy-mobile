@@ -1,0 +1,1 @@
+{"platforms":["apple","android"],"apple":{"modules":["ApplianceLabelOcrModule"]},"android":{"modules":["expo.modules.appliancelabelocr.ApplianceLabelOcrModule"]}}

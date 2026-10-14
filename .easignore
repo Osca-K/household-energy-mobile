@@ -1,0 +1,60 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# Temporary local/tunnel preview QR codes (keep the hosted demo QR)
+/expo-go-qr.png
+/expo-go-tunnel-qr.png
+/development-client-qr.png
+
+# Native Firebase configuration and emulator logs
+/firebase-config/*
+!/firebase-config/README.md
+/firebase-debug.log
+/firestore-debug.log
+/ui-debug.log
+
+# Real native configuration is included only in the authorized EAS build archive.
+!/firebase-config/
+!/firebase-config/google-services.json
+!/firebase-config/GoogleService-Info.plist

@@ -1,6 +1,6 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, View } from 'react-native';
-import { energyStyles as s, palette } from '@/design/energy-theme';
+import { LinearGradient } from '@/design/themed-gradient';
+import { StyleSheet, Text, View } from '@/design/themed-native';
+import { energyStyles as s, palette, controlGradient } from '@/design/energy-theme';
 
 export function UsageOverview({ budget, spent, estimate, energy, cost, load, on, total, remaining }: { budget: number; spent: number; estimate: number; energy: number; cost: number; load: number; on: number; total: number; remaining: number }) {
   const fraction = budget > 0 ? spent / budget : 0;
@@ -9,8 +9,8 @@ export function UsageOverview({ budget, spent, estimate, energy, cost, load, on,
   const status = load === 0 ? 'No load' : load < 1 ? 'Low' : load < 5 ? 'Moderate' : 'High';
   return <LinearGradient colors={['#ffffff', '#ffffff']} style={[s.card, styles.surface]}>
     <View style={[s.row, { alignItems: 'stretch' }]}>{[{ label: 'Budget', value: `R${budget.toLocaleString('en-ZA')}` }, { label: 'Spent', value: `R${spent.toFixed(2)}` }, { label: 'Estimate', value: `R${estimate.toFixed(2)}` }].map((metric, index) => <View key={metric.label} style={[styles.budgetColumn, index > 0 && styles.columnDivider]}><Text style={styles.label}>{metric.label}</Text><Text style={styles.budgetValue}>{metric.value}</Text></View>)}</View>
-      <View accessibilityRole="progressbar" accessibilityLabel="Monthly budget used" accessibilityValue={{ min: 0, max: 100, now: Math.max(0, Math.min(100, fraction * 100)) }} style={styles.track}><LinearGradient colors={['#b2a5f4', '#7c6af4']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ width: `${Math.max(0, Math.min(100, fraction * 100))}%`, height: '100%', borderRadius: 8 }} /></View>
-      <View style={[s.row, { justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 13 }]}><Text style={s.secondary}><Text style={{ fontSize: 16, color: '#8275e9' }}>{percentage}%</Text> used</Text><View style={[s.row, { gap: 6 }]}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: within ? '#9fbe84' : palette.coral }} /><Text style={s.secondary}>{within ? 'Within budget' : 'Above budget'}</Text></View></View>
+      <View accessibilityRole="progressbar" accessibilityLabel="Monthly budget used" accessibilityValue={{ min: 0, max: 100, now: Math.max(0, Math.min(100, fraction * 100)) }} style={styles.track}><LinearGradient colors={controlGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ width: `${Math.max(0, Math.min(100, fraction * 100))}%`, height: '100%', borderRadius: 8 }} /></View>
+      <View style={[s.row, { justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 13 }]}><Text style={s.secondary}><Text style={{ fontSize: 16, color: palette.blue }}>{percentage}%</Text> used</Text><View style={[s.row, { gap: 6 }]}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: within ? '#9fbe84' : palette.coral }} /><Text style={s.secondary}>{within ? 'Within budget' : 'Above budget'}</Text></View></View>
     <View style={styles.summary}>
       <OverviewReading label="Today’s usage" value={`R${cost.toFixed(2)}`} detail={`${energy.toFixed(1)} kWh`} />
       <OverviewReading label="Current load" value={load.toFixed(2)} unit="kW" detail={status} />

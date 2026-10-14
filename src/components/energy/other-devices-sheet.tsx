@@ -1,4 +1,4 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from '@/design/themed-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { periodLabel, displayValue, unitLabel, type Period, type Unit, type Segment } from '@/data/usage';
 import { energyStyles as s, palette } from '@/design/energy-theme';

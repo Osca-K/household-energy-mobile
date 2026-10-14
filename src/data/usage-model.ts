@@ -1,5 +1,5 @@
 import { initialDevices } from './devices';
-import { dayIntervals, periodDates, sampleDate, summarise, tariff, localToday } from './history';
+import { dayIntervals, periodDates, sampleDate, summarise, tariff, tariffAt, localToday } from './history';
 import { recordedAverages } from './usage-summary';
 export { tariff } from './history';
 export type Period = 'today' | 'week' | 'month';
@@ -22,21 +22,21 @@ export function getUsage(period: Period, devices = initialDevices, anchor = samp
   const total = summaries.reduce((sum, item) => sum + (item.energy ?? 0), 0);
   const colors = ['#8994f1', '#bac4f6', '#d0c9f3', '#aa92eb', '#dedbf8'];
   const segment = (name: string, color: string, energy: number): Segment => ({ name, color, energy, cost: energy * tariff, share: total ? energy / total * 100 : 0 });
-  const breakdown = sources.map((device, i) => ({ ...segment(device.name, colors[i % colors.length], summaries[i].energy ?? 0), id: device.id, missing: summaries[i].missing, noData: summaries[i].energy === null }));
+  const breakdown = sources.map((device, i) => ({ ...segment(device.name, colors[i % colors.length], summaries[i].energy ?? 0), cost: summaries[i].cost ?? 0, id: device.id, missing: summaries[i].missing, noData: summaries[i].energy === null }));
   const roomNames = [...new Set(sources.map(device => device.location || device.category))];
   const roomColors = ['#8994f1', '#e7c978', '#9ed5ad', '#a471e9', '#c8baf2'];
-  const rooms = roomNames.map((room, i) => { const indices = sources.flatMap((device, index) => (device.location || device.category) === room ? [index] : []); return { ...segment(room, roomColors[i % roomColors.length], indices.reduce((sum, index) => sum + (summaries[index].energy ?? 0), 0)), noData: indices.every(index => summaries[index].energy === null), missing: indices.some(index => summaries[index].missing) }; });
+  const rooms = roomNames.map((room, i) => { const indices = sources.flatMap((device, index) => (device.location || device.category) === room ? [index] : []); return { ...segment(room, roomColors[i % roomColors.length], indices.reduce((sum, index) => sum + (summaries[index].energy ?? 0), 0)), cost: indices.reduce((sum, index) => sum + (summaries[index].cost ?? 0), 0), noData: indices.every(index => summaries[index].energy === null), missing: indices.some(index => summaries[index].missing) }; });
   const daily = sources.map(device => anchor <= today ? readings(device, anchor) : []);
   const hourly = Array.from({ length: 24 }, (_, hour) => daily.reduce((sum, intervals) => sum + intervals.filter(item => item.minute >= hour * 60 && item.minute < (hour + 1) * 60).reduce((value, item) => value + (item.energy ?? 0), 0), 0));
   const energies = period === 'today' ? hourly : dates.map(date => sources.reduce((sum, device) => sum + (summarise(readings(device, date)).energy ?? 0), 0));
-  const bins = energies.map((energy, i) => ({ energy, cost: energy * tariff, label: period === 'today' ? `${String(i).padStart(2, '0')}:00` : period === 'week' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i] : String(i + 1) }));
+  const bins = energies.map((energy, i) => ({ energy, cost: energy * tariffAt(period === 'today' ? anchor : dates[i]), label: period === 'today' ? `${String(i).padStart(2, '0')}:00` : period === 'week' ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i] : String(i + 1) }));
   // Peak load is the largest simultaneous quarter-hour power reading, not
   // the largest daily energy bin divided by 24 (which would be mean power).
   const peak = Math.max(0, ...dates.flatMap(date => {
     const intervals = sources.map(device => readings(device, date));
     return Array.from({ length: 96 }, (_, index) => intervals.reduce((sum, values) => sum + (values[index]?.power ?? 0), 0));
   }));
-  return { total, cost: total * tariff, bins, devices: breakdown, rooms, peak, average: total / (period === 'today' ? 24 : Math.max(1, dates.length) * 24), ...averages, missing: summaries.some(item => item.missing || item.energy === null) };
+  return { total, cost: summaries.reduce((sum, item) => sum + (item.cost ?? 0), 0), bins, devices: breakdown, rooms, peak, average: total / (period === 'today' ? 24 : Math.max(1, dates.length) * 24), ...averages, missing: summaries.some(item => item.missing || item.energy === null) };
 }
 export function displayValue(value: number, unit: Unit) { return unit === 'energy' ? value.toFixed(1) : `R${value.toFixed(2)}`; }
 export function unitLabel(unit: Unit) { return unit === 'energy' ? 'kWh' : ''; }

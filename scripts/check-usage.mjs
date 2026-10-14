@@ -20,15 +20,40 @@ function load(file) {
     }
     return require(name);
   };
-  vm.runInNewContext(source, { exports: module.exports, module, require: localRequire, Date, Intl, console, Math, Promise }, { filename });
+  vm.runInNewContext(source, { exports: module.exports, module, require: localRequire, Date, Intl, console, Math, Promise, URL }, { filename });
   return module.exports;
 }
 const d = load('src/data/devices.ts');
 const h = load('src/data/history.ts');
+const dh = load('src/data/device-history.ts');
 const u = load('src/data/usage.ts');
 const chat = load('src/state/household.tsx');
 const close = (a, b) => assert(Math.abs(a - b) < 1e-8, `${a} differs from ${b}`);
 const anchor = '2026-10-08';
+// Device detail aggregation uses interval power today, daily/weekly energy otherwise.
+for (const device of d.initialDevices) {
+  for (const period of ['today', 'week', 'month']) {
+    const { dates, intervals, summary } = h.periodHistory(device, anchor, period, anchor);
+    const energy = dh.deviceBins(device, dates, anchor, period, false);
+    const costs = dh.deviceBins(device, dates, anchor, period, true);
+    close(energy.reduce((total, bin) => total + (bin.value ?? 0) * (period === 'today' ? .25 : 1), 0), summary.energy ?? 0);
+    close(costs.reduce((total, bin) => total + (bin.value ?? 0), 0), summary.cost ?? 0);
+    assert(energy.every(bin => bin.value === null || bin.value >= 0));
+    assert(costs.every(bin => bin.value === null || bin.value >= 0));
+    close(Object.values(summary.durations).reduce((total, minutes) => total + minutes, 0), intervals.length * 15);
+    if (period === 'month') assert.equal(dh.weekGroups(dates).flat().join(','), dates.join(','));
+  }
+}
+const fridgeForHistory = d.initialDevices.find(device => device.id === 'fridge');
+const heaterForHistory = d.initialDevices.find(device => device.id === 'water-heater');
+const acForHistory = d.initialDevices.find(device => device.id === 'air-conditioner');
+assert.equal(dh.observedSwitchOns(fridgeForHistory, h.dayIntervals(fridgeForHistory, anchor, anchor), anchor), 0, 'Compressor cycles are not switch-ons');
+assert.equal(dh.observedSwitchOns(heaterForHistory, h.dayIntervals(heaterForHistory, anchor, anchor), anchor), 2);
+assert.equal(dh.observedSwitchOns(acForHistory, h.dayIntervals(acForHistory, anchor, anchor), anchor), 1);
+const offlineForHistory = d.initialDevices.find(device => device.offline);
+assert(dh.deviceBins(offlineForHistory, [anchor], anchor, 'today', false).every(bin => bin.value === null));
+assert.equal(dh.observedSwitchOns(offlineForHistory, h.dayIntervals(offlineForHistory, anchor, anchor), anchor), null);
+assert.equal(dh.deviceBins(acForHistory, [h.addDays(anchor, 1)], anchor, 'today', false).length, 0);
 for (const period of u.periods) {
   const data = u.getUsage(period, d.initialDevices, anchor);
   for (const source of [data.devices, data.rooms, data.bins]) {
@@ -159,3 +184,52 @@ assert.equal(onlyMissingRest.rows.at(-1).deviceCount, 1);
 close(onlyMissingRest.rows.at(-1).share, 0);
 assert.equal(summary.topDevices([missingSegment], 0).rows[0].deviceCount, 1);
 console.log('Passed: prototype, chart interpolation, covered-interval averages, current-day cutoff, top-seven aggregation, fewer devices and missing-data checks.');
+
+// Profile settings migration, permissions, ownership and dated tariff checks.
+const settingsModel = load('src/data/settings.ts');
+const prefs = settingsModel.defaultSettings();
+assert.equal(settingsModel.initials('Osca Kholopha'), 'OK');
+assert.equal(settingsModel.isCreator(prefs), true);
+assert.equal(settingsModel.canAdd(prefs, 4), true);
+assert.equal(settingsModel.canAdd(prefs, 5), true);
+assert.equal(settingsModel.canAdd(prefs, 10), true);
+const transferred = settingsModel.transferOwner(prefs, 'member-2');
+assert.equal(transferred.household.owner, 'member-2');
+assert.equal(settingsModel.isCreator(transferred), false);
+assert.equal(prefs.household.owner, 'self');
+const readOnly = structuredClone(prefs); readOnly.household.owner = 'member-2';
+assert.equal(settingsModel.canAdd(readOnly, 0), false);
+const previousCost = u.getUsage('week', d.initialDevices, anchor).cost;
+h.configureTariffs([{ effective: '0000-01-01', rate: h.tariff }, { effective: '2026-10-09', rate: 2 }]);
+close(u.getUsage('week', d.initialDevices, anchor).cost, previousCost);
+const nextUsage = u.getUsage('week', d.initialDevices, '2026-10-10');
+close(nextUsage.cost, nextUsage.bins.reduce((sum, item) => sum + item.cost, 0));
+close(nextUsage.cost, nextUsage.devices.reduce((sum, item) => sum + item.cost, 0));
+close(nextUsage.cost, nextUsage.rooms.reduce((sum, item) => sum + item.cost, 0));
+const deviceHistory = h.periodHistory(d.initialDevices[1], '2026-10-10', 'week', '2026-10-10');
+close(deviceHistory.summary.cost, dh.deviceBins(d.initialDevices[1], deviceHistory.dates, '2026-10-10', 'week', true).reduce((sum, item) => sum + (item.value ?? 0), 0));
+h.configureTariffs(prefs.supply.rates);
+assert.equal(settingsModel.settingsOf({}).appearance, 'Light'); assert.equal(settingsModel.settingsOf({}).research, false);
+console.log('Passed profile defaults, Free allowance, read-only permissions, ownership transfer and dated tariff reconciliation across household, room and device history.');
+
+const permissions = load('src/state/permissions.ts');
+const invites = load('src/data/invitations.ts');
+const planData = load('src/data/plans.ts');
+const noticeData = load('src/data/notifications.ts');
+const legacyPrefs = { ...prefs, appearance: 'Dark', defaultView: 'cost', systemAppearance: true, reduceTransparency: false };
+const migrated = settingsModel.normaliseSettings(legacyPrefs);
+assert.equal(migrated.appearance, 'Light'); assert(!('defaultView' in migrated)); assert(!('systemAppearance' in migrated)); assert.equal(migrated.research, false);
+assert.equal(planData.plans.free.devices, 5); assert.equal(planData.plans.plus.devices, 20); assert.equal(planData.plans.free.aiQuestions, 5); assert.equal(planData.plans.plus.aiQuestions, 50);
+let localState = { ...chat.initialHousehold(), referenceDate: anchor };
+const memberState = structuredClone(localState); memberState.settings.household.owner = 'member-2';
+const attempt = structuredClone(memberState); attempt.budget = 1; attempt.settings.research = true; attempt.settings.supply.provider = 'Changed'; attempt.settings.alerts['air-conditioner'] = '1'; attempt.settings.profile.email = 'personal@example.com'; attempt.settings.notifications['Weekly usage summary'] = false; attempt.devices[1].powerOn = !attempt.devices[1].powerOn; attempt.devices[1].name = 'Not allowed'; attempt.devices[1].schedules = []; attempt.settings.household.members = [...attempt.settings.household.members, { id: 'extra', name: 'New' }];
+const guarded = permissions.enforcePermissions(memberState, attempt);
+assert.equal(guarded.budget, memberState.budget); assert.equal(guarded.settings.research, false); assert.equal(guarded.settings.supply.provider, memberState.settings.supply.provider); assert.equal(guarded.settings.alerts['air-conditioner'], memberState.settings.alerts['air-conditioner']); assert.equal(guarded.settings.profile.email, 'personal@example.com'); assert.equal(guarded.settings.notifications['Weekly usage summary'], false); assert.equal(guarded.devices[1].powerOn, !memberState.devices[1].powerOn); assert.equal(guarded.devices[1].name, memberState.devices[1].name); assert.equal(guarded.settings.household.members.length, memberState.settings.household.members.length);
+const consent = structuredClone(localState); consent.settings.research = true; assert.equal(permissions.enforcePermissions(localState, consent).settings.research, true); assert.equal(permissions.enforcePermissions(consent, localState).settings.research, false);
+const tooMany = structuredClone(localState); tooMany.devices.push({ ...tooMany.devices[1], id: 'sixth' }); assert.equal(permissions.enforcePermissions(localState, tooMany).devices.length, 6);
+const token = 'a'.repeat(48); const inviteSettings = structuredClone(prefs); inviteSettings.household.invitation = { token, expiresAt: '2026-10-18T12:00:00Z', revoked: false };
+assert.equal(invites.parseInvitation(invites.invitationLink(token)), token); assert.equal(invites.parseInvitation('http://127.0.0.1/join?token=' + token), ''); assert.equal(invites.invitationStatus(inviteSettings, token, new Date('2026-10-11')), 'already-joined');
+inviteSettings.household.members = inviteSettings.household.members.filter(member => member.id !== 'self'); assert.equal(invites.invitationStatus(inviteSettings, token, new Date('2026-10-11')), 'valid'); assert.equal(invites.invitationStatus(inviteSettings, token, new Date('2026-10-19')), 'expired'); assert.equal(invites.invitationStatus(inviteSettings, 'b'.repeat(48), new Date('2026-10-11')), 'invalid'); inviteSettings.household.invitation.revoked = true; assert.equal(invites.invitationStatus(inviteSettings, token, new Date('2026-10-11')), 'invalid');
+const notices = noticeData.householdAlerts(localState); assert(notices.some(notice => notice.id.includes('runtime:air-conditioner'))); assert(notices.some(notice => notice.id.includes('offline:washing-machine'))); assert(notices.some(notice => notice.id.includes(':balance'))); assert(!notices.some(notice => notice.id.includes('unexpected')));
+const readState = JSON.parse(JSON.stringify({ ...localState, readNotifications: notices.map(notice => notice.id) })); assert.equal(noticeData.householdAlerts(readState).filter(notice => !readState.readNotifications.includes(notice.id)).length, 0);
+console.log('Passed correction models: light-only migration, exact plan limits, creator/member authorization, research consent/withdrawal, Free allowance, invitation states, evidence-based inbox and persisted read IDs.');

@@ -1,0 +1,27 @@
+import { useRef, useState } from 'react';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { useAuthentication } from '@/state/auth';
+import { Card, Page } from '@/components/energy/primitives';
+import { ScreenHeader } from '@/components/energy/device-controls';
+import { WelcomeButton } from '@/components/energy/welcome-screen';
+import { Pressable, Text, TextInput, View } from '@/design/themed-native';
+import { energyStyles as s, palette } from '@/design/energy-theme';
+export default function AccountScreen() {
+  const { action } = useLocalSearchParams<{ action?: string }>(); const auth = useAuthentication();
+  const [register, setRegister] = useState(action === 'register'); const [recovery, setRecovery] = useState(false); const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [show, setShow] = useState(false); const [message, setMessage] = useState(''); const submitting = useRef(false);
+  const run = async (work: () => Promise<void>) => { if (submitting.current || auth.busy) return; submitting.current = true; setMessage(''); try { await work(); } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Please try again.'); } finally { submitting.current = false; } };
+  const submit = () => void run(async () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new Error('Enter a valid email address.');
+    if (recovery) { await auth.recover(email); setMessage('If an account exists for this address, a recovery email has been sent.'); return; }
+    if (!password || (register && (password.length < 6 || !name.trim() || name.trim().length > 80))) throw new Error('Enter your name and a password of at least six characters.');
+    if (register) await auth.register(name, email, password); else await auth.signIn(email, password);
+    setPassword('');
+  });
+  return <Page keyboard><ScreenHeader title={auth.user ? 'Your account' : recovery ? 'Recover password' : register ? 'Create account' : 'Welcome back'} fallback={'/' as Href} />
+    {auth.user ? <Card><Text style={s.heading}>{auth.user.displayName || auth.user.email}</Text><Text style={[s.secondary, { marginTop: 8 }]}>{auth.user.email}</Text>{!auth.user.verified ? <View style={{ gap: 12, marginTop: 18 }}><Text style={s.body}>Open the verification email, then return here.</Text><WelcomeButton label={auth.busy ? 'Checking…' : 'I have verified my email'} primary onPress={() => void run(() => auth.verify())} /><WelcomeButton label="Resend verification email" onPress={() => void run(async () => { await auth.resend(); setMessage('Verification email sent.'); })} /></View> : <View style={{ marginTop: 18 }}><WelcomeButton label="My household" primary onPress={() => router.replace('/household-setup' as Href)} /></View>}<View style={{ marginTop: 12 }}><WelcomeButton label="Sign out" onPress={() => void run(async () => { await auth.signOut(); router.replace('/'); })} /></View></Card>
+    : <Card><View style={{ gap: 12 }}>{register && !recovery && <Field label="Name" value={name} onChange={setName} disabled={auth.busy} />}<Field label="Email" value={email} onChange={setEmail} email disabled={auth.busy} />{!recovery && <><Text style={s.secondary}>Password</Text><View style={{ flexDirection: 'row', borderWidth: 1, borderColor: palette.divider, borderRadius: 14 }}><TextInput accessibilityLabel="Account password" value={password} onChangeText={setPassword} secureTextEntry={!show} editable={!auth.busy} autoCapitalize="none" autoComplete={register ? 'new-password' : 'current-password'} style={{ flex: 1, minWidth: 0, paddingHorizontal: 14, minHeight: 48, color: palette.navy, fontSize: 16 }} /><Pressable accessibilityRole="button" onPress={() => setShow(!show)} style={{ minHeight: 48, justifyContent: 'center', paddingHorizontal: 14 }}><Text style={{ color: palette.blue }}>{show ? 'Hide' : 'Show'}</Text></Pressable></View></>}<WelcomeButton label={auth.busy ? 'Please wait…' : recovery ? 'Send recovery email' : register ? 'Create account' : 'Log in'} primary onPress={submit} /><Pressable accessibilityRole="button" onPress={() => { setRecovery(false); setRegister(!register); setMessage(''); }} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: palette.blue }}>{register ? 'Already have an account? Log in' : 'Create account'}</Text></Pressable>{!register && !recovery && <Pressable accessibilityRole="button" onPress={() => setRecovery(true)} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: palette.blue }}>Forgot password?</Text></Pressable>}</View></Card>}
+    <WelcomeButton label="Continue local trial" onPress={() => void run(async () => { await auth.trial(); router.replace('/home'); })} />
+    {!!(message || auth.error) && <Card><Text accessibilityRole="alert" style={s.body}>{message || auth.error}</Text></Card>}
+  </Page>;
+}
+function Field({ label, value, onChange, email = false, disabled }: { label: string; value: string; onChange: (value: string) => void; email?: boolean; disabled: boolean }) { return <><Text style={s.secondary}>{label}</Text><TextInput accessibilityLabel={'Account ' + label.toLowerCase()} value={value} onChangeText={onChange} editable={!disabled} autoCapitalize={email ? 'none' : 'words'} keyboardType={email ? 'email-address' : 'default'} style={{ minHeight: 48, borderWidth: 1, borderColor: palette.divider, borderRadius: 14, paddingHorizontal: 14, color: palette.navy, fontSize: 16 }} /></>; }

@@ -8,7 +8,11 @@
     "scheme": "householdenergymobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.osca.householdenergymobile",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +21,12 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.osca.householdenergymobile",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static",
@@ -40,11 +49,32 @@
           "cameraPermission": "Take an appliance label photo for local specification entry.",
           "microphonePermission": false
         }
-      ]
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow camera access to scan household invitation QR codes.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "owner": "osca",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a4e31e06-a3cb-4d89-9d0e-61ee0ae41bbf"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a4e31e06-a3cb-4d89-9d0e-61ee0ae41bbf"
     }
   }
 }

@@ -1,15 +1,25 @@
-﻿# Household energy mobile prototype
+# Household Energy
 
-Expo SDK 57 / React Native application with Home, Usage, Devices, Add/Edit Device, device usage, AI landing and a focused conversation route. The approved Home layout and original bundled appliance illustrations are reused.
+Expo SDK 57 / React Native app for household electricity monitoring. Screens include
+welcome/login preview, Home, Usage, Devices, device editing and schedules, device
+history, AI conversations, Profile/settings and meter-photo review.
 
 ## Run
 
 ```powershell
-npm install
-npx expo start --web --port 8082
+npm ci
+npx expo start --go
+# Browser preview
+npm run web
+# Installed native development app
+npx expo start --dev-client
 ```
 
-Web preview: http://localhost:8082. Expo serves the same React Native components on web, iOS and Android.
+The iPhone UI demo is hosted independently of the computer. Scan
+[the hosted Expo Go QR](expo-go-hosted-demo-qr.png). See
+[meter scanning and the portable demo](docs/meter-scanning-and-demo.md) for its link.
+Automatic on-device OCR needs the native development/preview build; camera/photo
+review and manual entry remain available in Expo Go.
 
 ## Checks
 
@@ -17,22 +27,42 @@ Web preview: http://localhost:8082. Expo serves the same React Native components
 npm run lint
 npx tsc --noEmit
 npm run check:prototype
-npx expo export --platform all
+npm run check:ocr
+npm run check:meter
+node scripts/check-welcome.mjs
+node scripts/check-native-imports.mjs
 ```
 
-The prototype check covers period totals, tariff conversions, device/room/chart reconciliation, state duration totals, future/offline readings, overnight schedules, overlapping On/Scheduled counts, form validation and add/edit defaults, and chat prompt deduplication/history. Bundle export checks compilation; it is not iOS/Android device testing.
+These cover data reconciliation, schedules, missing readings, permissions, OCR
+extraction/review, meter confirmation/timestamps and navigation handlers. Physical
+camera, keyboard and offline behaviour still need phone testing.
 
-## Local data and behavior
+## Structure
 
-- Devices, budgets, schedules, reminders and conversation history share local state, persisted with AsyncStorage. A save failure leaves current session state intact and offers retry.
-- Device enabled controls household inclusion. Power controls update the local status snapshot. Scheduled mode applies enabled repeating slots; other modes retain schedule drafts without applying them. Overnight ranges are supported.
-- Historical sample readings are deterministic completed days through the stored reference date. These are separate from the local power snapshot and do not change when settings are edited. Newly added devices explicitly have no historical readings.
-- The smart meter represents known appliance totals, so it is excluded from household breakdown sums. Missing readings produce unknown consumption, not zero. Household totals are labelled known subtotals when incomplete.
-- Today charts show quarter-hour power in kW or interval cost; week/month power is mean kW over known hours. Energy totals and calendar entries use kWh. Cost is calculated with the illustrative tariff of R28.65 / 18.7 kWh.
-- Label photo selection uses the system camera/photo picker and clearly labelled demo field population. There is no OCR. Meter scanning and top-up remain UI-only placeholders.
-- The assistant uses local canned demo responses. Direct entry shows only a greeting or existing history; selected prompts submit once. Contextual schedule/device/budget actions navigate to existing screens. Reminders are saved locally and do not trigger notifications.
-- No backend, authentication, purchases, real hardware controls or AI service are connected.
+- `src/app`: Expo Router routes; `(tabs)` contains Home, Usage, Devices and AI.
+- `src/components/energy`: shared native UI and screens.
+- `src/data`, `src/state`, `src/services`: local models, persisted household state,
+  recognition and photo storage.
+- `src/design`: shared colours, surfaces and compatible native wrappers.
+- `modules/appliance-label-ocr`: Android/iOS bundled Latin ML Kit integration.
+- `assets/appliances-blue-soft`: active appliance illustrations. Earlier appliance
+  assets remain as source/reference inputs for the asset regression checks.
+- `docs`: native build setup, compatibility findings and hosted demo instructions.
 
-## Manual review
+## Native builds
 
-On a narrow phone viewport, check all tabs, scroll clearance above navigation, icon/category swipe and arrow controls, typed-name preservation, specifications and units, multiple schedules and overnight ranges, save/edit persistence, device details/date controls, period and Energy/Cost selectors, AI recommendation carousel, direct chat focus, prompt entry, message sending, back navigation and keyboard clearance. Camera permissions and native keyboard/safe-area behavior need physical-device or emulator review.
+`eas.json` contains development, preview and production profiles. Android OCR
+compilation has passed on EAS. iPhone signing/building needs Apple credentials;
+iOS native OCR and physical-device accuracy are not yet verified. Follow
+[the native OCR setup guide](docs/appliance-label-ocr.md).
+
+Generated native projects (`android/`, `ios/`), Expo caches/types and exports are
+ignored by Git and regenerated by Expo. Do not edit generated files to change app
+behaviour: update source, app.json/config plugins or the local module instead.
+
+## Cleanup recovery
+
+Unused Expo starter files and expired tunnel QR images were moved out of the active
+project into the ignored `.expo/cleanup-backup` folder for local recovery. This
+folder is not app source and is excluded from Git/EAS uploads. The current hosted
+Expo Go QR, original illustrations, active checks and native module are retained.

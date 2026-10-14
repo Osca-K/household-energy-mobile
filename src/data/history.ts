@@ -2,6 +2,9 @@ import { initialDevices, type Device } from './devices';
 export type Period = 'today' | 'week' | 'month';
 export type State = 'Active' | 'Idle' | 'Off' | 'Offline';
 export const tariff = 28.65 / 18.7;
+let rates = [{ effective: "0000-01-01", rate: tariff }];
+export function configureTariffs(value: { effective: string; rate: number }[]) { rates = [...value].sort((a, b) => b.effective.localeCompare(a.effective)); }
+export function tariffAt(date: string) { return rates.find(item => item.effective <= date)?.rate ?? tariff; }
 export const stateColors: Record<State, string> = { Active: '#a8d274', Idle: '#aaa0f3', Off: '#d6d8e5', Offline: '#9294a7' };
 export type Interval = { date: string; minute: number; minutes: number; state: State; power: number | null; energy: number | null; missing?: boolean };
 export function localToday(now = new Date()) { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now); const value = (type: string) => parts.find(part => part.type === type)?.value; return `${value('year')}-${value('month')}-${value('day')}`; }
@@ -29,7 +32,7 @@ export function summarise(intervals: Interval[]) {
   const known = intervals.filter(item => item.energy !== null);
   const energy = known.length ? known.reduce((sum, item) => sum + (item.energy ?? 0), 0) : null;
   const turnOns = intervals.filter((item, i) => item.state === 'Active' && (i === 0 || intervals[i - 1].state !== 'Active' || intervals[i - 1].date !== item.date)).length;
-  return { energy, cost: energy === null ? null : energy * tariff, durations, turnOns, missing: durations.Offline > 0 || intervals.some(item => item.missing), knownMinutes: known.length * 15 };
+  return { energy, cost: energy === null ? null : known.reduce((sum, item) => sum + (item.energy ?? 0) * tariffAt(item.date), 0), durations, turnOns, missing: durations.Offline > 0 || intervals.some(item => item.missing), knownMinutes: known.length * 15 };
 }
 export function sessions(intervals: Interval[]) { return intervals.reduce<{ start: number; end: number; state: State; date: string; energy: number | null }[]>((result, item) => { const previous = result.at(-1); if (previous && previous.date === item.date && previous.state === item.state && previous.end === item.minute) { previous.end += item.minutes; if (previous.energy !== null) previous.energy += item.energy ?? 0; } else result.push({ date: item.date, start: item.minute, end: item.minute + item.minutes, state: item.state, energy: item.energy }); return result; }, []); }
 export function durationLabel(minutes: number) { const hours = Math.floor(minutes / 60), rest = minutes % 60; return hours ? `${hours} h${rest ? ` ${rest} min` : ''}` : `${rest} min`; }

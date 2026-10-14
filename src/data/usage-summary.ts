@@ -1,20 +1,20 @@
 import type { Interval } from './history';
-import { tariff } from './history';
+import { tariffAt } from './history';
 import type { Period, Segment } from './usage-model';
 
 // Household coverage is the union of recorded time slots, not the sum of
 // device-hours. An offline device contributes neither energy nor a zero reading.
 export function recordedAverages(intervals: Interval[], period: Period) {
   const covered = new Map<string, number>();
-  let energy = 0;
+  let energy = 0; let cost = 0;
   for (const interval of intervals) {
     if (interval.energy === null) continue;
-    energy += interval.energy;
+    energy += interval.energy; cost += interval.energy * tariffAt(interval.date);
     covered.set(`${interval.date}:${interval.minute}`, interval.minutes);
   }
   const minutes = [...covered.values()].reduce((sum, value) => sum + value, 0);
   const intervalsCovered = minutes / (period === 'today' ? 60 : 1440);
-  return { averageEnergy: intervalsCovered ? energy / intervalsCovered : null, averageCost: intervalsCovered ? energy * tariff / intervalsCovered : null, intervalsCovered };
+  return { averageEnergy: intervalsCovered ? energy / intervalsCovered : null, averageCost: intervalsCovered ? cost / intervalsCovered : null, intervalsCovered };
 }
 
 export function topDevices(devices: Segment[], total: number) {

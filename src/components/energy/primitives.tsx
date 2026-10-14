@@ -1,10 +1,12 @@
+import { router, usePathname, type Href } from 'expo-router';
+import { useAppearance } from '@/design/appearance';
 import type { PropsWithChildren } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { LinearGradient } from '@/design/themed-gradient';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from '@/design/themed-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHousehold } from '@/state/household';
-import Svg, { Path, Circle } from 'react-native-svg';
-import { energyStyles as styles, palette } from '@/design/energy-theme';
+import Svg, { Path, Circle } from '@/design/themed-svg';
+import { energyStyles as styles, palette, controlGradient } from '@/design/energy-theme';
 
 const paths = {
   home: 'm3 11 9-8 9 8M5 10v10h14V10M10 20v-6h4v6',
@@ -34,15 +36,18 @@ export function Card({ children, style }: PropsWithChildren<{ style?: StyleProp<
   return <LinearGradient colors={['#ffffff', '#fcfbff']} style={[styles.card, style]}>{children}</LinearGradient>;
 }
 export function Page({ children, keyboard = false }: PropsWithChildren<{ keyboard?: boolean }>) {
-  const { error, retry } = useHousehold(); const insets = useSafeAreaInsets();
-  return <SafeAreaView edges={['top', 'left', 'right']} style={styles.page}><KeyboardAvoidingView style={{ flex: 1 }} behavior={keyboard ? Platform.OS === 'ios' ? 'padding' : 'height' : undefined}><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>{!!error && <View style={{ backgroundColor: '#fff0f3', padding: 12, borderRadius: 14 }}><Text accessibilityRole="alert" style={styles.secondary}>{error}</Text><Pressable accessibilityRole="button" onPress={retry} style={{ minHeight: 40, justifyContent: 'center' }}><Text style={{ color: palette.blue, fontSize: 12 }}>Retry local save</Text></Pressable></View>}{children}</ScrollView></KeyboardAvoidingView></SafeAreaView>;
+  const theme = useAppearance(); const { error, retry, state } = useHousehold(); const insets = useSafeAreaInsets(); const pathname = usePathname();
+  if (['/join', '/profile/invite'].includes(pathname)) return <SafeAreaView style={[styles.page, { padding: 24, justifyContent: 'center' }]}><Text style={styles.heading}>Household invitations</Text><Text style={[styles.secondary, { marginTop: 12 }]}>Joining households will be available in a later stage.</Text><Pressable onPress={() => router.back()} accessibilityRole="button" style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ color: palette.blue }}>Back</Text></Pressable></SafeAreaView>;
+  if (state.scope === 'cloud' && !['/devices', '/device-form', '/profile', '/account', '/household-setup'].includes(pathname)) return <SafeAreaView style={[styles.page, { padding: 24, justifyContent: 'center', backgroundColor: theme.background }]}><Text style={styles.heading}>Shared household</Text><Text style={[styles.secondary, { marginTop: 12 }]}>Devices and account setup are available. Shared usage, sessions, estimates, notifications and joining are planned for the next stage.</Text><Pressable accessibilityRole="button" onPress={() => router.replace('/devices')} style={{ minHeight: 48, marginTop: 20, justifyContent: 'center' }}><Text style={{ color: palette.blue }}>View devices</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.push('/account' as Href)} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ color: palette.blue }}>Your account</Text></Pressable></SafeAreaView>;
+
+  return <SafeAreaView edges={['top', 'left', 'right']} style={[styles.page, { backgroundColor: theme.background }]}><KeyboardAvoidingView style={{ flex: 1 }} behavior={keyboard ? Platform.OS === 'ios' ? 'padding' : 'height' : undefined}><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}>{!!error && <View style={{ backgroundColor: '#fff0f3', padding: 12, borderRadius: 14 }}><Text accessibilityRole="alert" style={styles.secondary}>{error}</Text><Pressable accessibilityRole="button" onPress={retry} style={{ minHeight: 40, justifyContent: 'center' }}><Text style={{ color: palette.blue, fontSize: 12 }}>{state.scope === 'cloud' ? 'Retry account connection' : 'Retry local save'}</Text></Pressable></View>}{children}</ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 export function IconButton({ name, label, onPress }: { name: IconName; label: string; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [local.iconButton, { opacity: pressed ? 0.6 : 1 }]}><OutlineIcon name={name} color={palette.muted} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [local.iconButton, { opacity: pressed ? 0.6 : 1 }]}><OutlineIcon name={name} color={palette.blue} /></Pressable>;
 }
 export function Progress({ fraction, label }: { fraction: number; label: string }) {
   const percent = Math.max(0, Math.min(100, fraction * 100));
-  return <View accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ min: 0, max: 100, now: percent }} style={local.track}><LinearGradient colors={['#aaa5ee', '#7b7bf9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: 8, width: `${percent}%`, borderRadius: 5 }} /></View>;
+  return <View accessibilityRole="progressbar" accessibilityLabel={label} accessibilityValue={{ min: 0, max: 100, now: percent }} style={local.track}><LinearGradient colors={controlGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: 8, width: `${percent}%`, borderRadius: 5 }} /></View>;
 }
 export function Placeholder({ title }: { title: string }) {
   return <Page><Text style={[styles.heading, { fontSize: 23 }]}>{title}</Text><Card><Text style={styles.heading}>{title} is coming next</Text><Text style={[styles.secondary, { marginTop: 8 }]}>This is a local UI preview. Home is ready; this tab is a placeholder.</Text></Card></Page>;

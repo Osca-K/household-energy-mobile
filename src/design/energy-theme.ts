@@ -1,6 +1,7 @@
 import { StyleSheet } from 'react-native';
 
-export const palette = { background: '#f5f3ff', card: '#ffffff', navy: '#17163d', muted: '#8582a4', blue: '#7875f5', lavender: '#eeebff', divider: '#e9e5f5', blush: '#fcf4f6', coral: '#d9878c' };
+export const palette = { background: '#f5f3ff', card: '#ffffff', navy: '#17163d', muted: '#8582a4', blue: '#3978df', blueSurface: '#edf3ff', blueBorder: '#d5e3ff', lavender: '#eeebff', divider: '#e9e5f5', blush: '#fcf4f6', coral: '#d9878c' };
+export const controlGradient = ['#85afff', '#3978df'] as const;
 export const energyStyles = StyleSheet.create({
   page: { flex: 1, backgroundColor: palette.background },
   content: { padding: 14, paddingBottom: 24, gap: 13, width: '100%', maxWidth: 430, alignSelf: 'center' },
